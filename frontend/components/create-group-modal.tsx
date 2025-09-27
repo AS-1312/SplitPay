@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAppStore } from "@/lib/store"
+import { createGroup } from "@/app/actions"
 import { generateId } from "@/lib/utils"
 import type { Group, Member } from "@/lib/types"
 import { X, Plus } from "lucide-react"
@@ -15,12 +15,13 @@ import { X, Plus } from "lucide-react"
 interface CreateGroupModalProps {
   isOpen: boolean
   onClose: () => void
+  onGroupCreated: (group: Group) => void
 }
 
-export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
+export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGroupModalProps) {
   const [groupName, setGroupName] = useState("")
   const [members, setMembers] = useState<Partial<Member>[]>([{ name: "", ensName: "" }])
-  const { addGroup } = useAppStore()
+  const [isCreating, setIsCreating] = useState(false)
 
   const addMember = () => {
     setMembers([...members, { name: "", ensName: "" }])
@@ -38,33 +39,43 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!groupName.trim()) return
+    if (!groupName.trim() || isCreating) return
 
     const validMembers = members.filter((m) => m.name?.trim() && m.ensName?.trim())
     if (validMembers.length === 0) return
 
-    const newGroup: Group = {
-      id: generateId(),
-      name: groupName.trim(),
-      members: validMembers.map((m) => ({
+    setIsCreating(true)
+
+    try {
+      const newGroup: Group = {
         id: generateId(),
-        name: m.name!.trim(),
-        ensName: m.ensName!.trim(),
-        walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`, // Mock address
-      })),
-      expenses: [],
-      createdAt: new Date(),
+        name: groupName.trim(),
+        members: validMembers.map((m) => ({
+          id: generateId(),
+          name: m.name!.trim(),
+          ensName: m.ensName!.trim(),
+          walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`, // Mock address
+        })),
+        expenses: [],
+        createdAt: new Date(),
+      }
+
+      const createdGroup = await createGroup(newGroup)
+      onGroupCreated(createdGroup)
+
+      // Reset form
+      setGroupName("")
+      setMembers([{ name: "", ensName: "" }])
+      onClose()
+    } catch (error) {
+      console.error('Error creating group:', error)
+      // TODO: Show error message to user
+    } finally {
+      setIsCreating(false)
     }
-
-    addGroup(newGroup)
-
-    // Reset form
-    setGroupName("")
-    setMembers([{ name: "", ensName: "" }])
-    onClose()
   }
 
   return (
@@ -161,11 +172,11 @@ export function CreateGroupModal({ isOpen, onClose }: CreateGroupModalProps) {
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+                <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent" disabled={isCreating}>
                   Cancel
                 </Button>
-                <Button type="submit" className="flex-1 gradient-primary text-white">
-                  Create Group
+                <Button type="submit" className="flex-1 gradient-primary text-white" disabled={isCreating}>
+                  {isCreating ? "Creating..." : "Create Group"}
                 </Button>
               </div>
             </form>

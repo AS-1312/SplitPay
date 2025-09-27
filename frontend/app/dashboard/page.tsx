@@ -1,18 +1,56 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Navbar } from "@/components/navbar";
 import { GroupCard } from "@/components/group-card";
 import { CreateGroupModal } from "@/components/create-group-modal";
 import { QuickStats } from "@/components/quick-stats";
 import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/lib/store";
+import { getAllGroups } from "@/app/actions";
+import { calculateGroupBalances } from "@/lib/api";
 import { Plus, Users, TrendingUp } from "lucide-react";
+import type { Group } from "@/lib/types";
 
 export default function DashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const { groups, getGroupBalances } = useAppStore();
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch groups from MongoDB using server actions
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedGroups = await getAllGroups();
+        setGroups(fetchedGroups);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching groups:', err);
+        setError('Failed to load groups');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGroups();
+  }, []);
+
+  // Handle group creation
+  const handleGroupCreated = (newGroup: Group) => {
+    setGroups(prev => [newGroup, ...prev]);
+  };
+
+  // Handle group exit
+  const handleGroupExited = (groupId: string) => {
+    setGroups(prev => prev.filter(group => group.id !== groupId));
+  };
+
+  // For demo purposes, assume first member is current user
+  const getCurrentUserId = (group: Group) => {
+    return group.members.length > 0 ? group.members[0].id : undefined;
+  };
 
   // Calculate user stats
   const stats = useMemo(() => {
@@ -20,7 +58,7 @@ export default function DashboardPage() {
     let totalToReceive = 0;
 
     groups.forEach((group) => {
-      const balances = getGroupBalances(group.id);
+      const balances = calculateGroupBalances(group);
       // For demo purposes, assume first member is current user
       const userBalance = Object.values(balances)[0] || 0;
 
@@ -36,7 +74,7 @@ export default function DashboardPage() {
       totalToReceive,
       totalGroups: groups.length,
     };
-  }, [groups, getGroupBalances]);
+  }, [groups]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,7 +113,18 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold text-gray-900">Your Groups</h2>
           </div>
 
-          {groups.length === 0 ? (
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading groups...</p>
+            </div>
+          ) : groups.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -102,8 +151,9 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {groups.map((group, index) => {
-                const balances = getGroupBalances(group.id);
+                const balances = calculateGroupBalances(group);
                 const userBalance = Object.values(balances)[0] || 0;
+                const currentUserId = getCurrentUserId(group);
 
                 return (
                   <GroupCard
@@ -111,6 +161,8 @@ export default function DashboardPage() {
                     group={group}
                     userBalance={userBalance}
                     delay={index * 0.1}
+                    currentUserId={currentUserId}
+                    onGroupExited={handleGroupExited}
                   />
                 );
               })}
@@ -159,6 +211,7 @@ export default function DashboardPage() {
       <CreateGroupModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onGroupCreated={handleGroupCreated}
       />
     </div>
   );
