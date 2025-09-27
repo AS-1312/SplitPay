@@ -3,7 +3,7 @@ import { mainnet, sepolia, hardhat } from 'wagmi/chains'
 import { metaMask } from 'wagmi/connectors'
 
 export const config = createConfig({
-  chains: [mainnet, sepolia, hardhat],
+  chains: [sepolia, mainnet, hardhat],
   connectors: [
     metaMask({
       dappMetadata: {
@@ -13,8 +13,8 @@ export const config = createConfig({
     }),
   ],
   transports: {
-    [mainnet.id]: http(),
     [sepolia.id]: http(),
+    [mainnet.id]: http(),
     [hardhat.id]: http(),
   },
 })

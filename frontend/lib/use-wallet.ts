@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
-import { useAccount, useBalance, useEnsName, useDisconnect, useConnect, useSwitchChain } from 'wagmi'
+import { useAccount, useBalance, useEnsName, useEnsAddress, useDisconnect, useConnect, useSwitchChain } from 'wagmi'
 import { formatEther } from 'viem'
-import { mainnet } from './wallet-config'
+import { sepolia } from './wallet-config'
+import { normalizeEnsName, validateEnsNameFormat } from './utils'
 
 export function useWalletConnection() {
   const { address, isConnected, chain } = useAccount()
@@ -18,9 +19,9 @@ export function useWalletConnection() {
     return parseFloat(eth).toFixed(4)
   }, [balance])
 
-  // Check if on correct network (mainnet for production)
+  // Check if on correct network (Sepolia for ENS validation)
   const isOnCorrectNetwork = useMemo(() => {
-    return chain?.id === mainnet.id
+    return chain?.id === sepolia.id
   }, [chain])
 
   // Connect to wallet
@@ -43,10 +44,10 @@ export function useWalletConnection() {
     disconnect()
   }, [disconnect])
 
-  // Switch to mainnet
-  const switchToMainnet = useCallback(() => {
-    if (chain?.id !== mainnet.id) {
-      switchChain({ chainId: mainnet.id })
+  // Switch to Sepolia
+  const switchToSepolia = useCallback(() => {
+    if (chain?.id !== sepolia.id) {
+      switchChain({ chainId: sepolia.id })
     }
   }, [switchChain, chain])
 
@@ -70,6 +71,16 @@ export function useWalletConnection() {
       : false,
   }))
 
+  // Check if user has ENS name (required for group creation)
+  const hasEnsName = useMemo(() => {
+    return !!ensName && ensName.trim() !== '';
+  }, [ensName]);
+
+  // Check if user can create groups (has ENS and on correct network)
+  const canCreateGroups = useMemo(() => {
+    return isConnected && hasEnsName && isOnCorrectNetwork;
+  }, [isConnected, hasEnsName, isOnCorrectNetwork]);
+
   return {
     // Connection state
     isConnected,
@@ -79,6 +90,8 @@ export function useWalletConnection() {
     displayName,
     chain,
     isOnCorrectNetwork,
+    hasEnsName,
+    canCreateGroups,
 
     // Balance
     balance: formattedBalance,
@@ -87,7 +100,7 @@ export function useWalletConnection() {
     // Actions
     connectWallet,
     disconnectWallet,
-    switchToMainnet,
+    switchToSepolia,
 
     // UI helpers
     walletOptions,
@@ -99,6 +112,36 @@ export function useWalletConnection() {
     connectError: connectError?.message,
     switchError: switchError?.message,
   }
+}
+
+// Hook for validating ENS names on Sepolia
+export function useEnsValidation(ensName: string) {
+  const formatValidation = useMemo(() => {
+    if (!ensName || ensName.trim() === '') {
+      return { isValid: true, error: undefined }; // Empty is OK for optional validation
+    }
+    return validateEnsNameFormat(ensName);
+  }, [ensName]);
+
+  const { data: resolvedAddress, isLoading, error } = useEnsAddress({
+    name: formatValidation.isValid && ensName ? normalizeEnsName(ensName) : undefined,
+    chainId: sepolia.id,
+    query: {
+      enabled: formatValidation.isValid && !!ensName && ensName.trim() !== '',
+    },
+  });
+
+  const isValidEns = useMemo(() => {
+    return formatValidation.isValid && !!resolvedAddress && !error;
+  }, [formatValidation.isValid, resolvedAddress, error]);
+
+  return {
+    isValid: isValidEns,
+    isLoading,
+    error: formatValidation.error || (error ? 'ENS name not found on Sepolia testnet' : undefined),
+    resolvedAddress,
+    formatError: formatValidation.error,
+  };
 }
 
 // Helper function to get connector icons

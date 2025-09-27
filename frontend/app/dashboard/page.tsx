@@ -19,7 +19,15 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const { address: walletAddress, isConnected } = useWalletConnection();
+  const {
+    address: walletAddress,
+    isConnected,
+    ensName,
+    hasEnsName,
+    canCreateGroups,
+    isOnCorrectNetwork,
+    switchToSepolia
+  } = useWalletConnection();
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -55,11 +63,23 @@ export default function DashboardPage() {
     setGroups(prev => prev.filter(group => group.id !== groupId));
   };
 
-  // Get current user ID based on wallet address
+  // Get current user ID based on ENS name (primary) or wallet address (fallback)
   const getCurrentUserId = (group: Group) => {
     if (!walletAddress) return undefined;
-    const member = group.members.find(m => m.walletAddress.toLowerCase() === walletAddress.toLowerCase());
-    return member?.id;
+
+    // First try to match by ENS name if available
+    if (ensName) {
+      const memberByEns = group.members.find(m =>
+        m.ensName && m.ensName.toLowerCase() === ensName.toLowerCase()
+      );
+      if (memberByEns) return memberByEns.id;
+    }
+
+    // Fallback to wallet address matching
+    const memberByAddress = group.members.find(m =>
+      m.walletAddress && m.walletAddress.toLowerCase() === walletAddress.toLowerCase()
+    );
+    return memberByAddress?.id;
   };
 
   // Calculate user stats
@@ -116,20 +136,62 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {mounted && isConnected && (
+        {/* Network Requirement */}
+        {mounted && isConnected && !isOnCorrectNetwork && (
+          <div className="text-center py-12 mb-8">
+            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center">
+              <Users className="w-12 h-12 text-red-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Switch to Sepolia Testnet
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              SplitPay requires Sepolia testnet for ENS name validation. Please switch networks to continue.
+            </p>
+            <Button
+              onClick={switchToSepolia}
+              className="gradient-primary text-white"
+            >
+              Switch to Sepolia
+            </Button>
+          </div>
+        )}
+
+        {/* ENS Requirement */}
+        {mounted && isConnected && isOnCorrectNetwork && !hasEnsName && (
+          <div className="text-center py-12 mb-8">
+            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
+              <Users className="w-12 h-12 text-purple-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              ENS Name Required
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              You need an ENS name (like yourname.eth) to create groups and manage expenses.
+              Get one at <a href="https://app.ens.domains" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">app.ens.domains</a>
+            </p>
+            <p className="text-sm text-gray-500 max-w-md mx-auto">
+              Your current wallet address: {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : ''}
+            </p>
+          </div>
+        )}
+
+        {mounted && isConnected && isOnCorrectNetwork && (
           <>
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
                 <p className="text-gray-600">
-                  Manage your groups and track expenses
+                  {hasEnsName ? `Welcome, ${ensName}` : 'Manage your groups and track expenses'}
                 </p>
               </div>
 
               <Button
                 onClick={() => setIsCreateModalOpen(true)}
                 className="gradient-primary text-white"
+                disabled={!canCreateGroups}
+                title={!canCreateGroups ? 'ENS name required to create groups' : ''}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Group
@@ -180,6 +242,8 @@ export default function DashboardPage() {
               <Button
                 onClick={() => setIsCreateModalOpen(true)}
                 className="gradient-primary text-white"
+                disabled={!canCreateGroups}
+                title={!canCreateGroups ? 'ENS name required to create groups' : ''}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Your First Group
@@ -239,6 +303,8 @@ export default function DashboardPage() {
                 onClick={() => setIsCreateModalOpen(true)}
                 size="lg"
                 className="gradient-primary text-white rounded-full w-14 h-14 shadow-lg"
+                disabled={!canCreateGroups}
+                title={!canCreateGroups ? 'ENS name required to create groups' : ''}
               >
                 <Plus className="w-6 h-6" />
               </Button>
