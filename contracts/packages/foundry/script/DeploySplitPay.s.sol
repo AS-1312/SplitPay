@@ -2,7 +2,8 @@
 pragma solidity ^0.8.19;
 
 import "./DeployHelpers.s.sol";
-import "../contracts/YourContract.sol";
+import "../contracts/SplitPay.sol";
+import { MockToken } from "../contracts/mocks/MockToken.sol";
 
 /**
  * @notice Deploy script for YourContract contract
@@ -14,7 +15,7 @@ import "../contracts/YourContract.sol";
  * yarn deploy --file DeployYourContract.s.sol  # local anvil chain
  * yarn deploy --file DeployYourContract.s.sol --network optimism # live network (requires keystore)
  */
-contract DeployYourContract is ScaffoldETHDeploy {
+contract DeploySplitPay is ScaffoldETHDeploy {
     /**
      * @dev Deployer setup based on `ETH_KEYSTORE_ACCOUNT` in `.env`:
      *      - "scaffold-eth-default": Uses Anvil's account #9 (0xa0Ee7A142d267C1f36714E4a8F75612F20a79720), no password prompt
@@ -25,6 +26,7 @@ contract DeployYourContract is ScaffoldETHDeploy {
      *      - Export contract addresses & ABIs to `nextjs` packages
      */
     function run() external ScaffoldEthDeployerRunner {
-        new YourContract(deployer);
+        MockToken mockToken = new MockToken(deployer, deployer);
+        new SplitPay(address(mockToken));
     }
 }
