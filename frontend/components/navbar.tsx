@@ -4,6 +4,48 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { SimpleWalletButton } from "@/components/simple-wallet-button"
+import { usePyusdBalance } from "@/lib/contract-hooks"
+import { formatPyusdAmount } from "@/lib/contract-utils"
+import { useAccount } from "wagmi"
+
+// PYUSD Balance Display Component
+function PyusdBalance() {
+  const { address, isConnected } = useAccount()
+  const { data: balance, isLoading, error } = usePyusdBalance(address)
+
+  if (!isConnected || !address) {
+    return null
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg">
+        <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm text-green-700">Loading...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center space-x-2 px-3 py-1.5 bg-red-50 rounded-lg">
+        <span className="text-sm text-red-700">Balance Error</span>
+      </div>
+    )
+  }
+
+  const formattedBalance = balance ? formatPyusdAmount(balance) : '0'
+  const displayBalance = parseFloat(formattedBalance).toFixed(2)
+
+  return (
+    <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+      <div className="w-2 h-2 bg-green-500 rounded-full" />
+      <span className="text-sm font-medium text-green-700">
+        {displayBalance} PYUSD
+      </span>
+    </div>
+  )
+}
 
 export function Navbar() {
   return (
@@ -30,6 +72,7 @@ export function Navbar() {
               </Button>
             </Link>
 
+            <PyusdBalance />
             <SimpleWalletButton />
           </div>
         </div>

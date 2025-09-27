@@ -179,7 +179,7 @@ export default function DashboardPage() {
             </h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
               You need an ENS name (like yourname.eth) to create groups and manage expenses.
-              Get one at <a href="https://app.ens.domains" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">app.ens.domains</a>
+              Get one at <a href="https://sepolia.app.ens.domains" target="_blank" rel="noopener noreferrer" className="text-purple-600 underline">sepolia.app.ens.domains</a>
             </p>
             <p className="text-sm text-gray-500 max-w-md mx-auto">
               Your current wallet address: {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : ''}
