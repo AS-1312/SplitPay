@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
-import { GroupModel } from '@/lib/models';
 
 // Connect to MongoDB
 async function connectDB() {
@@ -19,7 +18,7 @@ export async function PUT(
   { params }: { params: { id: string; expenseId: string } }
 ) {
   try {
-    await connectDB();
+    const db = await connectDB();
     const body = await request.json();
     const { description, amount, paidBy, splitBetween, category } = body;
 
@@ -30,24 +29,24 @@ export async function PUT(
     if (splitBetween) updateFields['expenses.$.splitBetween'] = splitBetween;
     if (category) updateFields['expenses.$.category'] = category;
 
-    const updatedGroup = await GroupModel.findOneAndUpdate(
+    const result = await db.collection('groups').findOneAndUpdate(
       { id: params.id, 'expenses.id': params.expenseId },
       { $set: updateFields },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
-    if (!updatedGroup) {
+    if (!result) {
       return NextResponse.json(
         { error: 'Group or expense not found' },
         { status: 404 }
       );
     }
 
-    const updatedExpense = updatedGroup.expenses.find(
+    const updatedExpense = result.expenses.find(
       (expense: any) => expense.id === params.expenseId
     );
 
-    return NextResponse.json({ expense: updatedExpense, group: updatedGroup });
+    return NextResponse.json({ expense: updatedExpense, group: result });
   } catch (error) {
     console.error('Error updating expense:', error);
     return NextResponse.json(
@@ -63,15 +62,15 @@ export async function DELETE(
   { params }: { params: { id: string; expenseId: string } }
 ) {
   try {
-    await connectDB();
+    const db = await connectDB();
 
-    const updatedGroup = await GroupModel.findOneAndUpdate(
+    const result = await db.collection('groups').findOneAndUpdate(
       { id: params.id },
       { $pull: { expenses: { id: params.expenseId } } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
-    if (!updatedGroup) {
+    if (!result) {
       return NextResponse.json(
         { error: 'Group not found' },
         { status: 404 }
@@ -80,7 +79,7 @@ export async function DELETE(
 
     return NextResponse.json({
       message: 'Expense deleted successfully',
-      group: updatedGroup
+      group: result
     });
   } catch (error) {
     console.error('Error deleting expense:', error);

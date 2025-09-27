@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { Navbar } from "@/components/navbar"
@@ -11,8 +11,9 @@ import { DebtSimplifier } from "@/components/debt-simplifier"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAppStore } from "@/lib/store"
-import type { Expense } from "@/lib/types"
+import { getGroupById } from "@/app/actions"
+import { calculateGroupBalances } from "@/lib/api"
+import type { Expense, Group } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { Plus, Search, Users, Receipt, BarChart3, ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -24,25 +25,54 @@ export default function GroupPage() {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [group, setGroup] = useState<Group | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const { groups, currentGroup, setCurrentGroup, getGroupBalances, deleteExpense } = useAppStore()
-
-  const group = groups.find((g) => g.id === groupId)
-
-  // Set current group when component mounts
-  useMemo(() => {
-    if (group && (!currentGroup || currentGroup.id !== groupId)) {
-      setCurrentGroup(group)
+  // Fetch group data from API
+  useEffect(() => {
+    const fetchGroup = async () => {
+      try {
+        setIsLoading(true)
+        const fetchedGroup = await getGroupById(groupId)
+        if (fetchedGroup) {
+          setGroup(fetchedGroup)
+          setError(null)
+        } else {
+          setError("Group not found")
+        }
+      } catch (err) {
+        console.error('Error fetching group:', err)
+        setError("Failed to load group")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [group, currentGroup, groupId, setCurrentGroup])
 
-  if (!group) {
+    fetchGroup()
+  }, [groupId])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <div className="animate-spin w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading group...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!group || error) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Group not found</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">{error || "Group not found"}</h1>
             <Link href="/dashboard">
               <Button>Back to Dashboard</Button>
             </Link>
@@ -52,7 +82,7 @@ export default function GroupPage() {
     )
   }
 
-  const balances = getGroupBalances(groupId)
+  const balances = calculateGroupBalances(group)
   const totalSpent = group.expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   const filteredExpenses = group.expenses.filter((expense) =>
@@ -66,7 +96,8 @@ export default function GroupPage() {
 
   const handleDeleteExpense = (expenseId: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
-      deleteExpense(groupId, expenseId)
+      // TODO: Implement expense deletion via API
+      console.log("Delete expense:", expenseId)
     }
   }
 
@@ -178,9 +209,12 @@ export default function GroupPage() {
           {/* Balances Tab */}
           <TabsContent value="balances" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {group.members.map((member, index) => (
-                <BalanceCard key={member.id} member={member} balance={balances[member.id] || 0} delay={index * 0.1} />
-              ))}
+              {group.members.map((member, index) => {
+                const memberBalance = Object.values(balances)[index] || 0
+                return (
+                  <BalanceCard key={member.id} member={member} balance={memberBalance} delay={index * 0.1} />
+                )
+              })}
             </div>
           </TabsContent>
 

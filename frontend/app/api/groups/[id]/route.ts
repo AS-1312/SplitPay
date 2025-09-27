@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
-import { GroupModel } from '@/lib/models';
 
 // Connect to MongoDB
 async function connectDB() {
@@ -19,8 +18,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
-    const group = await GroupModel.findOne({ id: params.id });
+    const db = await connectDB();
+    const group = await db.collection('groups').findOne({ id: params.id });
 
     if (!group) {
       return NextResponse.json(
@@ -45,24 +44,24 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
+    const db = await connectDB();
     const body = await request.json();
     const { name, members } = body;
 
-    const updatedGroup = await GroupModel.findOneAndUpdate(
+    const result = await db.collection('groups').findOneAndUpdate(
       { id: params.id },
-      { ...(name && { name }), ...(members && { members }) },
-      { new: true }
+      { $set: { ...(name && { name }), ...(members && { members }) } },
+      { returnDocument: 'after' }
     );
 
-    if (!updatedGroup) {
+    if (!result) {
       return NextResponse.json(
         { error: 'Group not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ group: updatedGroup });
+    return NextResponse.json({ group: result });
   } catch (error) {
     console.error('Error updating group:', error);
     return NextResponse.json(
@@ -78,10 +77,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
-    const deletedGroup = await GroupModel.findOneAndDelete({ id: params.id });
+    const db = await connectDB();
+    const result = await db.collection('groups').findOneAndDelete({ id: params.id });
 
-    if (!deletedGroup) {
+    if (!result) {
       return NextResponse.json(
         { error: 'Group not found' },
         { status: 404 }
