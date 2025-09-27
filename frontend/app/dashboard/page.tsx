@@ -82,13 +82,24 @@ export default function DashboardPage() {
     return memberByAddress?.id;
   };
 
+  // Check if current user is a member of the group
+  const isUserMemberOfGroup = (group: Group) => {
+    return getCurrentUserId(group) !== undefined;
+  };
+
+  // Filter groups to only show ones the current user is a member of
+  const userGroups = useMemo(() => {
+    if (!walletAddress) return [];
+    return groups.filter(isUserMemberOfGroup);
+  }, [groups, walletAddress, ensName]);
+
   // Calculate user stats
   const stats = useMemo(() => {
     let totalOwed = 0;
     let totalToReceive = 0;
 
     if (walletAddress) {
-      groups.forEach((group) => {
+      userGroups.forEach((group) => {
         const balances = calculateGroupBalances(group);
         const currentUserId = getCurrentUserId(group);
         const userBalance = currentUserId ? balances[currentUserId] || 0 : 0;
@@ -104,9 +115,9 @@ export default function DashboardPage() {
     return {
       totalOwed,
       totalToReceive,
-      totalGroups: groups.length,
+      totalGroups: userGroups.length,
     };
-  }, [groups, walletAddress]);
+  }, [userGroups, walletAddress]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -223,7 +234,7 @@ export default function DashboardPage() {
               <div className="animate-spin w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full mx-auto mb-4"></div>
               <p className="text-gray-600">Loading groups...</p>
             </div>
-          ) : groups.length === 0 ? (
+          ) : userGroups.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -251,10 +262,10 @@ export default function DashboardPage() {
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {groups.map((group, index) => {
+              {userGroups.map((group, index) => {
                 const balances = calculateGroupBalances(group);
-                const userBalance = Object.values(balances)[0] || 0;
                 const currentUserId = getCurrentUserId(group);
+                const userBalance = currentUserId ? balances[currentUserId] || 0 : 0;
 
                 return (
                   <GroupCard
@@ -272,7 +283,7 @@ export default function DashboardPage() {
         </div>
 
             {/* Recent Activity */}
-            {groups.length > 0 && (
+            {userGroups.length > 0 && (
               <div>
                 <div className="flex items-center space-x-2 mb-6">
                   <TrendingUp className="w-5 h-5 text-gray-600" />
