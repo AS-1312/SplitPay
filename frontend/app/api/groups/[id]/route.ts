@@ -15,11 +15,12 @@ async function connectDB() {
 // GET - Fetch specific group by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const db = await connectDB();
-    const group = await db.collection('groups').findOne({ id: params.id });
+    const { id } = await params;
+    const group = await db.collection('groups').findOne({ id });
 
     if (!group) {
       return NextResponse.json(
@@ -41,15 +42,16 @@ export async function GET(
 // PUT - Update group
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const db = await connectDB();
+    const { id } = await params;
     const body = await request.json();
     const { name, members } = body;
 
     const result = await db.collection('groups').findOneAndUpdate(
-      { id: params.id },
+      { id },
       { $set: { ...(name && { name }), ...(members && { members }) } },
       { returnDocument: 'after' }
     );
@@ -74,11 +76,12 @@ export async function PUT(
 // DELETE - Delete group
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const db = await connectDB();
-    const result = await db.collection('groups').findOneAndDelete({ id: params.id });
+    const { id } = await params;
+    const result = await db.collection('groups').findOneAndDelete({ id });
 
     if (!result) {
       return NextResponse.json(
