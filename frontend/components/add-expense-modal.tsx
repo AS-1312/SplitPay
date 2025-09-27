@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { useAppStore } from "@/lib/store"
+import { expensesApi } from "@/lib/api"
 import { generateId } from "@/lib/utils"
 import type { Expense, Member } from "@/lib/types"
-import { X, DollarSign, Calendar, Users, Tag } from "lucide-react"
+import { X, DollarSign, Calendar, Users, Tag, Loader2 } from "lucide-react"
 
 interface AddExpenseModalProps {
   isOpen: boolean
@@ -20,6 +20,7 @@ interface AddExpenseModalProps {
   groupId: string
   members: Member[]
   editingExpense?: Expense | null
+  onExpenseAdded?: () => void // Callback to refresh parent data
 }
 
 const categories = [
@@ -30,7 +31,7 @@ const categories = [
   { value: "other", label: "Other", icon: "📝" },
 ]
 
-export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpense }: AddExpenseModalProps) {
+export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpense, onExpenseAdded }: AddExpenseModalProps) {
   const [amount, setAmount] = useState(editingExpense?.amount.toString() || "")
   const [description, setDescription] = useState(editingExpense?.description || "")
   const [paidBy, setPaidBy] = useState(editingExpense?.paidBy || "")
@@ -39,38 +40,53 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
   const [date, setDate] = useState(
     editingExpense?.date ? editingExpense.date.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
   )
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const { addExpense, updateExpense } = useAppStore()
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!amount || !description || !paidBy || splitBetween.length === 0) return
 
-    const expenseData = {
-      id: editingExpense?.id || generateId(),
-      description: description.trim(),
-      amount: Number.parseFloat(amount),
-      paidBy,
-      splitBetween,
-      category: category as Expense["category"],
-      date: new Date(date),
-    }
+    setIsLoading(true)
+    setError(null)
 
-    if (editingExpense) {
-      updateExpense(groupId, editingExpense.id, expenseData)
-    } else {
-      addExpense(groupId, expenseData as Expense)
-    }
+    try {
+      const expenseData = {
+        id: editingExpense?.id || generateId(),
+        description: description.trim(),
+        amount: Number.parseFloat(amount),
+        paidBy,
+        splitBetween,
+        category: category as Expense["category"],
+        date: new Date(date),
+      }
 
-    // Reset form
-    setAmount("")
-    setDescription("")
-    setPaidBy("")
-    setSplitBetween([])
-    setCategory("food")
-    setDate(new Date().toISOString().split("T")[0])
-    onClose()
+      if (editingExpense) {
+        // Update existing expense
+        await expensesApi.update(groupId, editingExpense.id, expenseData)
+      } else {
+        // Create new expense
+        await expensesApi.create(groupId, expenseData)
+      }
+
+      // Reset form
+      setAmount("")
+      setDescription("")
+      setPaidBy("")
+      setSplitBetween([])
+      setCategory("food")
+      setDate(new Date().toISOString().split("T")[0])
+
+      // Notify parent component to refresh data
+      onExpenseAdded?.()
+      onClose()
+    } catch (err) {
+      console.error('Error saving expense:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save expense')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const toggleMemberInSplit = (memberId: string) => {
@@ -105,10 +121,16 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
               <h2 className="text-2xl font-bold text-gray-900">
                 {editingExpense ? "Edit Expense" : "Add New Expense"}
               </h2>
-              <Button variant="ghost" size="sm" onClick={onClose}>
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={isLoading}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Amount */}
@@ -126,6 +148,7 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                   placeholder="0.00"
                   className="mt-1 text-lg"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -139,6 +162,7 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                   placeholder="What was this expense for?"
                   className="mt-1"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -148,7 +172,7 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                   <Tag className="w-4 h-4" />
                   <span>Category</span>
                 </Label>
-                <Select value={category} onValueChange={setCategory}>
+                <Select value={category} onValueChange={setCategory} disabled={isLoading}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
@@ -178,13 +202,14 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                   onChange={(e) => setDate(e.target.value)}
                   className="mt-1"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
               {/* Paid By */}
               <div>
                 <Label>Who paid?</Label>
-                <Select value={paidBy} onValueChange={setPaidBy}>
+                <Select value={paidBy} onValueChange={setPaidBy} disabled={isLoading}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select who paid" />
                   </SelectTrigger>
@@ -214,6 +239,7 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                     size="sm"
                     onClick={selectAllMembers}
                     className="text-green-600 border-green-200 hover:bg-green-50 bg-transparent"
+                    disabled={isLoading}
                   >
                     Select All
                   </Button>
@@ -226,6 +252,7 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
                         <Checkbox
                           checked={splitBetween.includes(member.id)}
                           onCheckedChange={() => toggleMemberInSplit(member.id)}
+                          disabled={isLoading}
                         />
                         <div>
                           <div className="font-medium text-gray-900">{member.name}</div>
@@ -249,15 +276,22 @@ export function AddExpenseModal({ isOpen, onClose, groupId, members, editingExpe
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+                <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent" disabled={isLoading}>
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   className="flex-1 gradient-primary text-white"
-                  disabled={!amount || !description || !paidBy || splitBetween.length === 0}
+                  disabled={!amount || !description || !paidBy || splitBetween.length === 0 || isLoading}
                 >
-                  {editingExpense ? "Update Expense" : "Add Expense"}
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    editingExpense ? "Update Expense" : "Add Expense"
+                  )}
                 </Button>
               </div>
             </form>

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getGroupById } from "@/app/actions"
-import { calculateGroupBalances } from "@/lib/api"
+import { calculateGroupBalances, expensesApi } from "@/lib/api"
 import type { Expense, Group } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { Plus, Search, Users, Receipt, BarChart3, ArrowLeft } from "lucide-react"
@@ -30,25 +30,25 @@ export default function GroupPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Fetch group data from API
-  useEffect(() => {
-    const fetchGroup = async () => {
-      try {
-        setIsLoading(true)
-        const fetchedGroup = await getGroupById(groupId)
-        if (fetchedGroup) {
-          setGroup(fetchedGroup)
-          setError(null)
-        } else {
-          setError("Group not found")
-        }
-      } catch (err) {
-        console.error('Error fetching group:', err)
-        setError("Failed to load group")
-      } finally {
-        setIsLoading(false)
+  const fetchGroup = async () => {
+    try {
+      setIsLoading(true)
+      const fetchedGroup = await getGroupById(groupId)
+      if (fetchedGroup) {
+        setGroup(fetchedGroup)
+        setError(null)
+      } else {
+        setError("Group not found")
       }
+    } catch (err) {
+      console.error('Error fetching group:', err)
+      setError("Failed to load group")
+    } finally {
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchGroup()
   }, [groupId])
 
@@ -94,10 +94,16 @@ export default function GroupPage() {
     setIsAddExpenseOpen(true)
   }
 
-  const handleDeleteExpense = (expenseId: string) => {
+  const handleDeleteExpense = async (expenseId: string) => {
     if (confirm("Are you sure you want to delete this expense?")) {
-      // TODO: Implement expense deletion via API
-      console.log("Delete expense:", expenseId)
+      try {
+        await expensesApi.delete(groupId, expenseId)
+        // Refresh group data after deletion
+        await fetchGroup()
+      } catch (err) {
+        console.error('Error deleting expense:', err)
+        alert('Failed to delete expense. Please try again.')
+      }
     }
   }
 
@@ -242,6 +248,7 @@ export default function GroupPage() {
         groupId={groupId}
         members={group.members}
         editingExpense={editingExpense}
+        onExpenseAdded={fetchGroup}
       />
     </div>
   )
