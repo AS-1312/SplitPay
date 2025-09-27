@@ -27,7 +27,8 @@ contract DeploySplitPay is ScaffoldETHDeploy {
      *      - Export contract addresses & ABIs to `nextjs` packages
      */
     function run() external ScaffoldEthDeployerRunner {
-        MockToken mockToken = new MockToken(deployer, deployer);
-        new SplitPay(IERC20(address(mockToken)));
+        address pyusd = 0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9; // sepolia
+        //MockToken mockToken = new MockToken(deployer, deployer);
+        new SplitPay(IERC20(pyusd));
     }
 }

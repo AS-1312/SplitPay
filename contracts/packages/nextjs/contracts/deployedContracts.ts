@@ -648,20 +648,90 @@ const deployedContracts = {
             {
               name: "_pyusd",
               type: "address",
-              internalType: "address",
+              internalType: "contract IERC20",
             },
           ],
           stateMutability: "nonpayable",
         },
         {
           type: "function",
-          name: "PYUSD",
+          name: "getReputationLevel",
+          inputs: [
+            {
+              name: "user",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "string",
+              internalType: "string",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "latePayments",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "paused",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "pyusd",
           inputs: [],
           outputs: [
             {
               name: "",
               type: "address",
+              internalType: "contract IERC20",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "reputationScore",
+          inputs: [
+            {
+              name: "",
+              type: "address",
               internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
             },
           ],
           stateMutability: "view",
@@ -672,13 +742,8 @@ const deployedContracts = {
           inputs: [
             {
               name: "groupId",
-              type: "string",
-              internalType: "string",
-            },
-            {
-              name: "debtors",
-              type: "address[]",
-              internalType: "address[]",
+              type: "bytes32",
+              internalType: "bytes32",
             },
             {
               name: "creditors",
@@ -690,9 +755,33 @@ const deployedContracts = {
               type: "uint256[]",
               internalType: "uint256[]",
             },
+            {
+              name: "dueDate",
+              type: "uint256",
+              internalType: "uint256",
+            },
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "totalSettlements",
+          inputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "event",
@@ -700,15 +789,15 @@ const deployedContracts = {
           inputs: [
             {
               name: "groupId",
-              type: "string",
+              type: "bytes32",
               indexed: false,
-              internalType: "string",
+              internalType: "bytes32",
             },
             {
               name: "debtors",
-              type: "address[]",
+              type: "address",
               indexed: false,
-              internalType: "address[]",
+              internalType: "address",
             },
             {
               name: "creditors",
@@ -731,9 +820,75 @@ const deployedContracts = {
           ],
           anonymous: false,
         },
+        {
+          type: "event",
+          name: "Paused",
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "ReputationUpdated",
+          inputs: [
+            {
+              name: "user",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newScore",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "wasOnTime",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "Unpaused",
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "CreditorAmountMismatch",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "EnforcedPause",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "ExpectedPause",
+          inputs: [],
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 1,
+      deployedOnBlock: 2,
     },
   },
 } as const;
