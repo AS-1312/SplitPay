@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connect } from 'mongoose';
 import clientPromise from '@/lib/mongodb';
-import { GroupModel } from '@/lib/models';
 import type { Group } from '@/lib/types';
 
 // Connect to MongoDB
@@ -18,8 +16,8 @@ async function connectDB() {
 // GET - Fetch all groups
 export async function GET() {
   try {
-    await connectDB();
-    const groups = await GroupModel.find({}).sort({ createdAt: -1 });
+    const db = await connectDB();
+    const groups = await db.collection('groups').find({}).sort({ createdAt: -1 }).toArray();
     return NextResponse.json({ groups });
   } catch (error) {
     console.error('Error fetching groups:', error);
@@ -33,7 +31,7 @@ export async function GET() {
 // POST - Create new group
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    const db = await connectDB();
     const body = await request.json();
     const { id, name, members, expenses = [], createdAt = new Date() } = body;
 
@@ -44,16 +42,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newGroup = new GroupModel({
+    const newGroup = {
       id,
       name,
       members,
       expenses,
       createdAt
-    });
+    };
 
-    const savedGroup = await newGroup.save();
-    return NextResponse.json({ group: savedGroup }, { status: 201 });
+    const result = await db.collection('groups').insertOne(newGroup);
+    return NextResponse.json({ group: { ...newGroup, _id: result.insertedId } }, { status: 201 });
   } catch (error) {
     console.error('Error creating group:', error);
     return NextResponse.json(
