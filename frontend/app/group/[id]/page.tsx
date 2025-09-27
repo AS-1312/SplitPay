@@ -216,7 +216,7 @@ export default function GroupPage() {
           <TabsContent value="balances" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {group.members.map((member, index) => {
-                const memberBalance = Object.values(balances)[index] || 0
+                const memberBalance = balances[member.id] || 0
                 return (
                   <BalanceCard key={member.id} member={member} balance={memberBalance} delay={index * 0.1} />
                 )
@@ -226,7 +226,7 @@ export default function GroupPage() {
 
           {/* Simplify Tab */}
           <TabsContent value="simplify" className="space-y-6">
-            <DebtSimplifier groupId={groupId} members={group.members} />
+            <DebtSimplifier groupId={groupId} members={group.members} balances={balances} />
           </TabsContent>
         </Tabs>
       </div>

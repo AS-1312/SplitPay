@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DebtArrow } from "@/components/debt-arrow"
 import { SettlementModal } from "@/components/settlement-modal"
-import { useAppStore } from "@/lib/store"
 import type { Member, Debt } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { ArrowRight, Zap, TrendingDown } from "lucide-react"
@@ -14,14 +13,145 @@ import { ArrowRight, Zap, TrendingDown } from "lucide-react"
 interface DebtSimplifierProps {
   groupId: string
   members: Member[]
+  balances: { [memberId: string]: number }
 }
 
-export function DebtSimplifier({ groupId, members }: DebtSimplifierProps) {
+export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierProps) {
   const [isSettlementOpen, setIsSettlementOpen] = useState(false)
-  const { getGroupBalances, getSimplifiedDebts } = useAppStore()
 
-  const balances = getGroupBalances(groupId)
-  const simplifiedDebts = getSimplifiedDebts(groupId)
+  // Helper function to get display name (ENS name or member name)
+  const getMemberDisplayName = (member: Member): string => {
+    return member.ensName && member.ensName.trim() !== '' ? member.ensName : member.name
+  }
+
+  // Data validation function
+  const validateData = () => {
+    // Check if balances sum to approximately zero
+    const sum = Object.values(balances).reduce((a, b) => a + b, 0)
+    if (Math.abs(sum) > 0.01) {
+      console.warn('DebtSimplifier: Balances do not sum to zero', { sum, balances })
+    }
+
+    // Check if all balance keys correspond to valid members
+    const memberIds = new Set(members.map(m => m.id))
+    const balanceIds = Object.keys(balances)
+    const invalidIds = balanceIds.filter(id => !memberIds.has(id))
+    if (invalidIds.length > 0) {
+      console.warn('DebtSimplifier: Invalid member IDs in balances', { invalidIds })
+    }
+
+    // Check for members without names
+    const membersWithoutName = members.filter(m => (!m.name || m.name.trim() === '') && (!m.ensName || m.ensName.trim() === ''))
+    if (membersWithoutName.length > 0) {
+      console.warn('DebtSimplifier: Members without valid names', { membersWithoutName })
+    }
+
+    return {
+      isValid: Math.abs(sum) <= 0.01 && invalidIds.length === 0 && membersWithoutName.length === 0,
+      sum,
+      invalidIds,
+      membersWithoutName
+    }
+  }
+
+  // Optimized debt settlement algorithm
+  const getSimplifiedDebts = () => {
+    // Validate data first
+    const validation = validateData()
+    if (!validation.isValid) {
+      console.error('DebtSimplifier: Data validation failed', validation)
+    }
+
+    // Convert balances to creditors and debtors
+    const creditors: { id: string; amount: number }[] = []
+    const debtors: { id: string; amount: number }[] = []
+
+    Object.entries(balances).forEach(([memberId, balance]) => {
+      // Only process members that exist in the members array
+      const member = members.find(m => m.id === memberId)
+      if (!member) {
+        console.warn(`DebtSimplifier: Member ${memberId} not found in members array`)
+        return
+      }
+
+      if (balance > 0.01) {
+        creditors.push({ id: memberId, amount: balance })
+      } else if (balance < -0.01) {
+        debtors.push({ id: memberId, amount: -balance })
+      }
+    })
+
+    if (creditors.length === 0 || debtors.length === 0) {
+      return []
+    }
+
+    // Optimized algorithm: Dynamic re-sorting for better results
+    const debts: Debt[] = []
+
+    // Create working copies
+    let workingCreditors = [...creditors]
+    let workingDebtors = [...debtors]
+
+    while (workingCreditors.length > 0 && workingDebtors.length > 0) {
+      // Sort by amount (largest first) for optimal pairing
+      workingCreditors.sort((a, b) => b.amount - a.amount)
+      workingDebtors.sort((a, b) => b.amount - a.amount)
+
+      // Look for exact matches first to minimize total transactions
+      let bestCreditorIdx = 0
+      let bestDebtorIdx = 0
+      let foundExactMatch = false
+
+      for (let i = 0; i < workingCreditors.length && !foundExactMatch; i++) {
+        for (let j = 0; j < workingDebtors.length; j++) {
+          if (Math.abs(workingCreditors[i].amount - workingDebtors[j].amount) < 0.01) {
+            bestCreditorIdx = i
+            bestDebtorIdx = j
+            foundExactMatch = true
+            break
+          }
+        }
+      }
+
+      const creditor = workingCreditors[bestCreditorIdx]
+      const debtor = workingDebtors[bestDebtorIdx]
+
+      const creditorMember = members.find((m) => m.id === creditor.id)
+      const debtorMember = members.find((m) => m.id === debtor.id)
+
+      if (!creditorMember || !debtorMember) {
+        console.error('DebtSimplifier: Could not find member for debt calculation', {
+          creditorId: creditor.id,
+          debtorId: debtor.id
+        })
+        break
+      }
+
+      const amount = Math.min(creditor.amount, debtor.amount)
+
+      debts.push({
+        from: getMemberDisplayName(debtorMember),
+        to: getMemberDisplayName(creditorMember),
+        amount: Math.round(amount * 100) / 100,
+      })
+
+      // Update amounts
+      creditor.amount -= amount
+      debtor.amount -= amount
+
+      // Remove settled parties
+      if (creditor.amount < 0.01) {
+        workingCreditors.splice(bestCreditorIdx, 1)
+      }
+      if (debtor.amount < 0.01) {
+        workingDebtors.splice(bestDebtorIdx, 1)
+      }
+    }
+
+    return debts
+  }
+
+  const simplifiedDebts = getSimplifiedDebts()
 
   // Calculate original debts (all possible debts before simplification)
   const originalDebts: Debt[] = []
@@ -40,8 +170,8 @@ export function DebtSimplifier({ groupId, members }: DebtSimplifierProps) {
 
           if (debtPortion > 0.01) {
             originalDebts.push({
-              from: fromMember.ensName,
-              to: toMember.ensName,
+              from: getMemberDisplayName(fromMember),
+              to: getMemberDisplayName(toMember),
               amount: debtPortion,
             })
           }
@@ -57,7 +187,8 @@ export function DebtSimplifier({ groupId, members }: DebtSimplifierProps) {
       ? Math.round(((totalOriginalTransfers - totalSimplifiedTransfers) / totalOriginalTransfers) * 100)
       : 0
 
-  const getMemberByEns = (ensName: string) => members.find((m) => m.ensName === ensName)
+  const getMemberByDisplayName = (displayName: string) =>
+    members.find((m) => getMemberDisplayName(m) === displayName)
 
   const hasDebts = simplifiedDebts.length > 0
 
@@ -103,8 +234,8 @@ export function DebtSimplifier({ groupId, members }: DebtSimplifierProps) {
 
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {originalDebts.map((debt, index) => {
-                const fromMember = getMemberByEns(debt.from)
-                const toMember = getMemberByEns(debt.to)
+                const fromMember = getMemberByDisplayName(debt.from)
+                const toMember = getMemberByDisplayName(debt.to)
 
                 if (!fromMember || !toMember) return null
 
@@ -150,8 +281,8 @@ export function DebtSimplifier({ groupId, members }: DebtSimplifierProps) {
 
             <div className="space-y-3">
               {simplifiedDebts.map((debt, index) => {
-                const fromMember = getMemberByEns(debt.from)
-                const toMember = getMemberByEns(debt.to)
+                const fromMember = getMemberByDisplayName(debt.from)
+                const toMember = getMemberByDisplayName(debt.to)
 
                 if (!fromMember || !toMember) return null
 
