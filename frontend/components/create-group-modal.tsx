@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createGroup } from "@/app/actions"
 import { generateId } from "@/lib/utils"
+import { useWalletConnection } from "@/lib/use-wallet"
 import type { Group, Member } from "@/lib/types"
 import { X, Plus } from "lucide-react"
 
@@ -22,6 +23,7 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
   const [groupName, setGroupName] = useState("")
   const [members, setMembers] = useState<Partial<Member>[]>([{ name: "", ensName: "" }])
   const [isCreating, setIsCreating] = useState(false)
+  const { address: walletAddress, displayName } = useWalletConnection()
 
   const addMember = () => {
     setMembers([...members, { name: "", ensName: "" }])
@@ -50,15 +52,26 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
     setIsCreating(true)
 
     try {
-      const newGroup: Group = {
-        id: generateId(),
-        name: groupName.trim(),
-        members: validMembers.map((m) => ({
+      // Add the current user as the first member
+      const allMembers = [
+        {
+          id: generateId(),
+          name: displayName || "You",
+          ensName: displayName || walletAddress?.slice(0, 6) + "..." + walletAddress?.slice(-4) || "",
+          walletAddress: walletAddress || "",
+        },
+        ...validMembers.map((m) => ({
           id: generateId(),
           name: m.name!.trim(),
           ensName: m.ensName!.trim(),
-          walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`, // Mock address
-        })),
+          walletAddress: `0x${Math.random().toString(16).substring(2, 42)}`, // Mock address for other members
+        }))
+      ]
+
+      const newGroup: Group = {
+        id: generateId(),
+        name: groupName.trim(),
+        members: allMembers,
         expenses: [],
         createdAt: new Date(),
       }

@@ -9,6 +9,7 @@ import { QuickStats } from "@/components/quick-stats";
 import { Button } from "@/components/ui/button";
 import { getAllGroups } from "@/app/actions";
 import { calculateGroupBalances } from "@/lib/api";
+import { useWalletConnection } from "@/lib/use-wallet";
 import { Plus, Users, TrendingUp } from "lucide-react";
 import type { Group } from "@/lib/types";
 
@@ -17,6 +18,13 @@ export default function DashboardPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const { address: walletAddress, isConnected } = useWalletConnection();
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch groups from MongoDB using server actions
   useEffect(() => {
@@ -47,9 +55,11 @@ export default function DashboardPage() {
     setGroups(prev => prev.filter(group => group.id !== groupId));
   };
 
-  // For demo purposes, assume first member is current user
+  // Get current user ID based on wallet address
   const getCurrentUserId = (group: Group) => {
-    return group.members.length > 0 ? group.members[0].id : undefined;
+    if (!walletAddress) return undefined;
+    const member = group.members.find(m => m.walletAddress.toLowerCase() === walletAddress.toLowerCase());
+    return member?.id;
   };
 
   // Calculate user stats
@@ -57,57 +67,84 @@ export default function DashboardPage() {
     let totalOwed = 0;
     let totalToReceive = 0;
 
-    groups.forEach((group) => {
-      const balances = calculateGroupBalances(group);
-      // For demo purposes, assume first member is current user
-      const userBalance = Object.values(balances)[0] || 0;
+    if (walletAddress) {
+      groups.forEach((group) => {
+        const balances = calculateGroupBalances(group);
+        const currentUserId = getCurrentUserId(group);
+        const userBalance = currentUserId ? balances[currentUserId] || 0 : 0;
 
-      if (userBalance < 0) {
-        totalOwed += -userBalance;
-      } else if (userBalance > 0) {
-        totalToReceive += userBalance;
-      }
-    });
+        if (userBalance < 0) {
+          totalOwed += -userBalance;
+        } else if (userBalance > 0) {
+          totalToReceive += userBalance;
+        }
+      });
+    }
 
     return {
       totalOwed,
       totalToReceive,
       totalGroups: groups.length,
     };
-  }, [groups]);
+  }, [groups, walletAddress]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-            <p className="text-gray-600">
-              Manage your groups and track expenses
+        {/* Show loading state during hydration */}
+        {!mounted && (
+          <div className="text-center py-12">
+            <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        )}
+
+        {/* Wallet Connection Required */}
+        {mounted && !isConnected && (
+          <div className="text-center py-12 mb-8">
+            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-full flex items-center justify-center">
+              <Users className="w-12 h-12 text-orange-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Connect Your Wallet
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Connect your crypto wallet to start creating groups and managing shared expenses.
             </p>
           </div>
+        )}
 
-          <Button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="gradient-primary text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Group
-          </Button>
-        </div>
+        {mounted && isConnected && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+                <p className="text-gray-600">
+                  Manage your groups and track expenses
+                </p>
+              </div>
 
-        {/* Quick Stats */}
-        <QuickStats
-          totalOwed={stats.totalOwed}
-          totalToReceive={stats.totalToReceive}
-          totalGroups={stats.totalGroups}
-        />
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="gradient-primary text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Group
+              </Button>
+            </div>
 
-        {/* Groups Section */}
-        <div className="mb-8">
+            {/* Quick Stats */}
+            <QuickStats
+              totalOwed={stats.totalOwed}
+              totalToReceive={stats.totalToReceive}
+              totalGroups={stats.totalGroups}
+            />
+
+            {/* Groups Section */}
+            <div className="mb-8">
           <div className="flex items-center space-x-2 mb-6">
             <Users className="w-5 h-5 text-gray-600" />
             <h2 className="text-xl font-semibold text-gray-900">Your Groups</h2>
@@ -170,49 +207,51 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Recent Activity */}
-        {groups.length > 0 && (
-          <div>
-            <div className="flex items-center space-x-2 mb-6">
-              <TrendingUp className="w-5 h-5 text-gray-600" />
-              <h2 className="text-xl font-semibold text-gray-900">
-                Recent Activity
-              </h2>
+            {/* Recent Activity */}
+            {groups.length > 0 && (
+              <div>
+                <div className="flex items-center space-x-2 mb-6">
+                  <TrendingUp className="w-5 h-5 text-gray-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Recent Activity
+                  </h2>
+                </div>
+
+                <div className="gradient-card rounded-xl p-6">
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                      <TrendingUp className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Activity Feed Coming Soon
+                    </h3>
+                    <p className="text-gray-600">
+                      Track recent expenses, settlements, and group updates here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Floating Action Button for Mobile */}
+            <div className="fixed bottom-6 right-6 md:hidden">
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                size="lg"
+                className="gradient-primary text-white rounded-full w-14 h-14 shadow-lg"
+              >
+                <Plus className="w-6 h-6" />
+              </Button>
             </div>
 
-            <div className="gradient-card rounded-xl p-6">
-              <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
-                  <TrendingUp className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Activity Feed Coming Soon
-                </h3>
-                <p className="text-gray-600">
-                  Track recent expenses, settlements, and group updates here.
-                </p>
-              </div>
-            </div>
-          </div>
+            <CreateGroupModal
+              isOpen={isCreateModalOpen}
+              onClose={() => setIsCreateModalOpen(false)}
+              onGroupCreated={handleGroupCreated}
+            />
+          </>
         )}
       </div>
-
-      {/* Floating Action Button for Mobile */}
-      <div className="fixed bottom-6 right-6 md:hidden">
-        <Button
-          onClick={() => setIsCreateModalOpen(true)}
-          size="lg"
-          className="gradient-primary text-white rounded-full w-14 h-14 shadow-lg"
-        >
-          <Plus className="w-6 h-6" />
-        </Button>
-      </div>
-
-      <CreateGroupModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onGroupCreated={handleGroupCreated}
-      />
     </div>
   );
 }
