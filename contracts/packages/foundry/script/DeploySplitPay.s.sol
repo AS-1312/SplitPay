@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "./DeployHelpers.s.sol";
 import "../contracts/SplitPay.sol";
 import { MockToken } from "../contracts/mocks/MockToken.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @notice Deploy script for YourContract contract
@@ -27,6 +28,6 @@ contract DeploySplitPay is ScaffoldETHDeploy {
      */
     function run() external ScaffoldEthDeployerRunner {
         MockToken mockToken = new MockToken(deployer, deployer);
-        new SplitPay(address(mockToken));
+        new SplitPay(IERC20(address(mockToken)));
     }
 }
