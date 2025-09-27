@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const { address: walletAddress, isConnected, displayName } = useWalletConnection();
+  const { address: walletAddress, isConnected } = useWalletConnection();
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -32,23 +32,8 @@ export default function DashboardPage() {
       try {
         setIsLoading(true);
         const fetchedGroups = await getAllGroups();
-
-        // Filter groups to only show ones where the connected wallet is a member
-        const filteredGroups = walletAddress
-          ? fetchedGroups.filter(group =>
-              group.members.some(member =>
-                member.walletAddress.toLowerCase() === walletAddress.toLowerCase()
-              )
-            )
-          : [];
-
-        setGroups(filteredGroups);
+        setGroups(fetchedGroups);
         setError(null);
-
-        // Log filtering info for debugging
-        if (walletAddress) {
-          console.log(`Wallet filtering: ${filteredGroups.length}/${fetchedGroups.length} groups shown for ${walletAddress}`);
-        }
       } catch (err) {
         console.error('Error fetching groups:', err);
         setError('Failed to load groups');
@@ -57,18 +42,8 @@ export default function DashboardPage() {
       }
     };
 
-    // Only fetch groups if wallet is connected
-    if (mounted && isConnected && walletAddress) {
-      fetchGroups();
-    } else if (mounted && isConnected) {
-      // Wallet connected but no address yet, keep loading
-      setIsLoading(true);
-    } else if (mounted) {
-      // Wallet not connected, clear groups and stop loading
-      setGroups([]);
-      setIsLoading(false);
-    }
-  }, [mounted, isConnected, walletAddress]);
+    fetchGroups();
+  }, []);
 
   // Handle group creation
   const handleGroupCreated = (newGroup: Group) => {
@@ -170,14 +145,9 @@ export default function DashboardPage() {
 
             {/* Groups Section */}
             <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-gray-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Your Groups</h2>
-            </div>
-            <div className="text-sm text-gray-500">
-              Showing groups for: <span className="font-medium text-gray-700">{displayName}</span>
-            </div>
+          <div className="flex items-center space-x-2 mb-6">
+            <Users className="w-5 h-5 text-gray-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Your Groups</h2>
           </div>
 
           {error && (
@@ -201,26 +171,19 @@ export default function DashboardPage() {
                 <Users className="w-12 h-12 text-green-600" />
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                No groups found
+                No groups yet
               </h3>
-              <p className="text-gray-600 mb-2 max-w-md mx-auto">
-                No groups found for your connected wallet address.
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Create your first group to start splitting expenses with friends
+                and family.
               </p>
-              <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-                Connected: {displayName || 'Unknown wallet'}
-              </p>
-              <div className="space-y-2">
-                <Button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="gradient-primary text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create New Group
-                </Button>
-                <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Or ask friends to add your wallet address to existing groups
-                </p>
-              </div>
+              <Button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="gradient-primary text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Group
+              </Button>
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

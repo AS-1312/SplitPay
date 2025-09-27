@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useAccount, useBalance, useEnsName, useDisconnect, useConnect, useSwitchChain } from 'wagmi'
 import { formatEther } from 'viem'
-import { mainnet } from 'wagmi/chains'
+import { mainnet } from './wallet-config'
 
 export function useWalletConnection() {
   const { address, isConnected, chain } = useAccount()
