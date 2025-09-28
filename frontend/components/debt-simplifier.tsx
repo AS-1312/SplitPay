@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,23 +8,36 @@ import { DebtArrow } from "@/components/debt-arrow"
 import { SettlementModal } from "@/components/settlement-modal"
 import type { Member, Debt } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
-import { ArrowRight, Zap, TrendingDown } from "lucide-react"
+import { useAccount } from "wagmi"
+import { ArrowRight, Zap, TrendingDown, User, AlertCircle } from "lucide-react"
 
 interface DebtSimplifierProps {
   groupId: string
   members: Member[]
   balances: { [memberId: string]: number }
+  onSettlementComplete?: () => void
 }
 
-export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierProps) {
+export function DebtSimplifier({ groupId, members, balances, onSettlementComplete }: DebtSimplifierProps) {
   const [isSettlementOpen, setIsSettlementOpen] = useState(false)
+  const { address: userAddress } = useAccount()
+
+  // Find the current user in the members list
+  const currentUser = useMemo(() => {
+    if (!userAddress) return null
+    //console log all member addresses
+    console.log(members.map(m => m.walletAddress))
+    return members.find(member => 
+      member.walletAddress?.toLowerCase() === userAddress.toLowerCase()
+    )
+  }, [userAddress, members])
 
   // Helper function to get display name (ENS name or member name)
   const getMemberDisplayName = (member: Member): string => {
     return member.ensName && member.ensName.trim() !== '' ? member.ensName : member.name
   }
 
-  // Data validation function
+  // Enhanced data validation with user context
   const validateData = () => {
     // Check if balances sum to approximately zero
     const sum = Object.values(balances).reduce((a, b) => a + b, 0)
@@ -151,7 +164,52 @@ export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierPro
     return debts
   }
 
+  // Get user's personal debt status
+  const getUserDebtStatus = () => {
+    if (!currentUser) return null
+
+    const userBalance = balances[currentUser.id] || 0
+    const userDisplayName = getMemberDisplayName(currentUser)
+
+    if (Math.abs(userBalance) < 0.01) {
+      return {
+        status: 'settled',
+        message: 'You are all settled up!',
+        amount: 0
+      }
+    }
+
+    if (userBalance > 0.01) {
+      return {
+        status: 'owed',
+        message: `You are owed ${formatCurrency(userBalance)}`,
+        amount: userBalance
+      }
+    }
+
+    return {
+      status: 'owes',
+      message: `You owe ${formatCurrency(Math.abs(userBalance))}`,
+      amount: Math.abs(userBalance)
+    }
+  }
+
+  // Get debts specifically involving the current user
+  const getUserSpecificDebts = () => {
+    if (!currentUser) return { owedBy: [], owedTo: [] }
+
+    const userDisplayName = getMemberDisplayName(currentUser)
+    const allDebts = getSimplifiedDebts()
+
+    const owedBy = allDebts.filter(debt => debt.from === userDisplayName)
+    const owedTo = allDebts.filter(debt => debt.to === userDisplayName)
+
+    return { owedBy, owedTo }
+  }
+
   const simplifiedDebts = getSimplifiedDebts()
+  const userDebtStatus = getUserDebtStatus()
+  const userSpecificDebts = getUserSpecificDebts()
 
   // Calculate original debts (all possible debts before simplification)
   const originalDebts: Debt[] = []
@@ -194,8 +252,133 @@ export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierPro
 
   return (
     <div className="space-y-8">
+      {/* User Status Card */}
+      {currentUser && userDebtStatus && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6"
+        >
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Your Status</h3>
+              <p className="text-sm text-gray-600">Connected as {getMemberDisplayName(currentUser)}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-lg font-semibold ${
+                userDebtStatus.status === 'settled' ? 'text-green-700' :
+                userDebtStatus.status === 'owed' ? 'text-blue-700' : 'text-red-700'
+              }`}>
+                {userDebtStatus.message}
+              </p>
+              {userDebtStatus.status === 'owes' && userSpecificDebts.owedBy.length > 0 && (
+                <p className="text-sm text-gray-600 mt-1">
+                  You need to pay {userSpecificDebts.owedBy.length} member{userSpecificDebts.owedBy.length > 1 ? 's' : ''}
+                </p>
+              )}
+              {userDebtStatus.status === 'owed' && userSpecificDebts.owedTo.length > 0 && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {userSpecificDebts.owedTo.length} member{userSpecificDebts.owedTo.length > 1 ? 's' : ''} owe{userSpecificDebts.owedTo.length === 1 ? 's' : ''} you
+                </p>
+              )}
+            </div>
+            
+            <Badge 
+              variant={userDebtStatus.status === 'settled' ? 'default' : 'secondary'}
+              className={
+                userDebtStatus.status === 'settled' ? 'bg-green-100 text-green-800 border-green-200' :
+                userDebtStatus.status === 'owed' ? 'bg-blue-100 text-blue-800 border-blue-200' : 
+                'bg-red-100 text-red-800 border-red-200'
+              }
+            >
+              {userDebtStatus.status === 'settled' ? 'All Settled' : 
+               userDebtStatus.status === 'owed' ? 'You are Owed' : 'You Owe'}
+            </Badge>
+          </div>
+        </motion.div>
+      )}
+
+      {!currentUser && userAddress && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-yellow-50 border border-yellow-200 rounded-xl p-6"
+        >
+          <div className="flex items-center space-x-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600" />
+            <div>
+              <h3 className="font-semibold text-yellow-800">Not a Group Member</h3>
+              <p className="text-sm text-yellow-600">Your connected wallet is not a member of this group.</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Your Specific Debts */}
+      {currentUser && (userSpecificDebts.owedBy.length > 0 || userSpecificDebts.owedTo.length > 0) && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+            <User className="w-5 h-5 text-blue-600" />
+            <span>Your Debts</span>
+          </h3>
+
+          {userSpecificDebts.owedBy.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-red-700 mb-2">You need to pay:</h4>
+              {userSpecificDebts.owedBy.map((debt, index) => {
+                const toMember = getMemberByDisplayName(debt.to)
+                if (!toMember || !currentUser) return null
+
+                return (
+                  <DebtArrow
+                    key={`user-owes-${index}`}
+                    fromMember={currentUser}
+                    toMember={toMember}
+                    amount={debt.amount}
+                    isSimplified={true}
+                    delay={index * 0.1}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {userSpecificDebts.owedTo.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-green-700 mb-2">Others owe you:</h4>
+              {userSpecificDebts.owedTo.map((debt, index) => {
+                const fromMember = getMemberByDisplayName(debt.from)
+                if (!fromMember || !currentUser) return null
+
+                return (
+                  <DebtArrow
+                    key={`user-owed-${index}`}
+                    fromMember={fromMember}
+                    toMember={currentUser}
+                    amount={debt.amount}
+                    isSimplified={true}
+                    delay={index * 0.1}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* Stats Header */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-center">
         <div className="flex items-center justify-center space-x-4 mb-4">
           <Badge variant="outline" className="text-lg px-4 py-2">
             <TrendingDown className="w-4 h-4 mr-2" />
@@ -302,8 +485,8 @@ export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierPro
         </div>
       )}
 
-      {/* Settlement CTA */}
-      {hasDebts && (
+      {/* Settlement CTA - Only show if user has debts to pay */}
+      {currentUser && userDebtStatus?.status === 'owes' && userSpecificDebts.owedBy.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -311,16 +494,51 @@ export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierPro
           className="text-center pt-8 border-t border-gray-200"
         >
           <div className="gradient-card rounded-xl p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Settle?</h3>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to Settle Your Debts?</h3>
             <p className="text-gray-600 mb-6">
-              Use PYUSD to settle all debts instantly with just one transaction per person.
+              Use PYUSD to settle your debts of {formatCurrency(userDebtStatus.amount)} instantly.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Button size="lg" className="gradient-primary text-white px-8" onClick={() => setIsSettlementOpen(true)}>
                 <Zap className="w-4 h-4 mr-2" />
-                Settle with PYUSD
+                Pay with PYUSD
               </Button>
+              <div className="text-sm text-gray-500">
+                Total to pay: {formatCurrency(userSpecificDebts.owedBy.reduce((sum, debt) => sum + debt.amount, 0))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* General Settlement CTA for all debts (fallback) */}
+      {hasDebts && (!currentUser || userDebtStatus?.status !== 'owes') && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 1 }}
+          className="text-center pt-8 border-t border-gray-200"
+        >
+          <div className="gradient-card rounded-xl p-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Settlement Available</h3>
+            <p className="text-gray-600 mb-6">
+              {!currentUser 
+                ? "Connect your wallet to participate in group settlement."
+                : "Group members can use PYUSD to settle all debts instantly."
+              }
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              {/* <Button 
+                size="lg" 
+                className="gradient-primary text-white px-8" 
+                onClick={() => setIsSettlementOpen(true)}
+                disabled={!currentUser}
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                View Settlement Options
+              </Button> */}
               <div className="text-sm text-gray-500">
                 Total to settle: {formatCurrency(simplifiedDebts.reduce((sum, debt) => sum + debt.amount, 0))}
               </div>
@@ -334,7 +552,8 @@ export function DebtSimplifier({ groupId, members, balances }: DebtSimplifierPro
         onClose={() => setIsSettlementOpen(false)}
         groupId={groupId}
         members={members}
-        debts={simplifiedDebts}
+        debts={currentUser && userDebtStatus?.status === 'owes' ? userSpecificDebts.owedBy : simplifiedDebts}
+        onSettlementComplete={onSettlementComplete}
       />
     </div>
   )

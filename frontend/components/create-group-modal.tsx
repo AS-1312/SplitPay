@@ -28,10 +28,10 @@ interface MemberFormData {
 function MemberValidation({ member, currentUserEns, onValidationChange }: {
   member: MemberFormData;
   currentUserEns?: string | null;
-  onValidationChange: (validation: { isValid: boolean; isLoading: boolean; error?: string }) => void;
+  onValidationChange: (validation: { isValid: boolean; isLoading: boolean; error?: string; resolvedAddress?: string }) => void;
 }) {
   const ensValidation = useEnsValidation(member.ensName.trim() || "");
-  const prevValidationRef = useRef<{ isValid: boolean; isLoading: boolean; error?: string } | null>(null);
+  const prevValidationRef = useRef<{ isValid: boolean; isLoading: boolean; error?: string; resolvedAddress?: string } | null>(null);
 
   // Check format first for immediate feedback
   const formatValidation = useMemo(() => {
@@ -53,29 +53,34 @@ function MemberValidation({ member, currentUserEns, onValidationChange }: {
   // Combine all validations
   const finalValidation = useMemo(() => {
     if (!member.ensName.trim()) {
-      return { isValid: true, isLoading: false, error: undefined };
+      return { isValid: true, isLoading: false, error: undefined, resolvedAddress: undefined };
     }
 
     // Format validation first
     if (!formatValidation.isValid) {
-      return { isValid: false, isLoading: false, error: formatValidation.error };
+      return { isValid: false, isLoading: false, error: formatValidation.error, resolvedAddress: undefined };
     }
 
     // Self-add check
     if (!selfAddCheck.isValid) {
-      return { isValid: false, isLoading: false, error: selfAddCheck.error };
+      return { isValid: false, isLoading: false, error: selfAddCheck.error, resolvedAddress: undefined };
     }
 
     // ENS validation (requires network call)
     if (ensValidation.isLoading) {
-      return { isValid: false, isLoading: true, error: undefined };
+      return { isValid: false, isLoading: true, error: undefined, resolvedAddress: undefined };
     }
 
     if (!ensValidation.isValid && ensValidation.error) {
-      return { isValid: false, isLoading: false, error: ensValidation.error };
+      return { isValid: false, isLoading: false, error: ensValidation.error, resolvedAddress: undefined };
     }
 
-    return { isValid: ensValidation.isValid, isLoading: false, error: undefined };
+    return { 
+      isValid: ensValidation.isValid, 
+      isLoading: false, 
+      error: undefined, 
+      resolvedAddress: ensValidation.resolvedAddress as string | undefined
+    };
   }, [formatValidation, selfAddCheck, ensValidation]);
 
   // Notify parent of validation changes only when they actually change
@@ -84,7 +89,8 @@ function MemberValidation({ member, currentUserEns, onValidationChange }: {
     if (!prev ||
         prev.isValid !== finalValidation.isValid ||
         prev.isLoading !== finalValidation.isLoading ||
-        prev.error !== finalValidation.error) {
+        prev.error !== finalValidation.error ||
+        prev.resolvedAddress !== finalValidation.resolvedAddress) {
       prevValidationRef.current = finalValidation;
       onValidationChange(finalValidation);
     }
@@ -97,11 +103,11 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
   const [groupName, setGroupName] = useState("")
   const [members, setMembers] = useState<MemberFormData[]>([{ name: "", ensName: "" }])
   const [isCreating, setIsCreating] = useState(false)
-  const [membersValidation, setMembersValidation] = useState<Array<{ isValid: boolean; isLoading: boolean; error?: string }>>([])
+  const [membersValidation, setMembersValidation] = useState<Array<{ isValid: boolean; isLoading: boolean; error?: string; resolvedAddress?: string }>>([])
   const { address: walletAddress, ensName: currentUserEns, canCreateGroups } = useWalletConnection()
 
   // Handle validation updates from child components
-  const handleValidationChange = useCallback((index: number, validation: { isValid: boolean; isLoading: boolean; error?: string }) => {
+  const handleValidationChange = useCallback((index: number, validation: { isValid: boolean; isLoading: boolean; error?: string; resolvedAddress?: string }) => {
     setMembersValidation(prev => {
       const newValidations = [...prev];
       // Only update if the validation actually changed
@@ -115,7 +121,7 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
 
   const addMember = () => {
     setMembers([...members, { name: "", ensName: "" }])
-    setMembersValidation([...membersValidation, { isValid: true, isLoading: false }])
+    setMembersValidation([...membersValidation, { isValid: true, isLoading: false, resolvedAddress: undefined }])
   }
 
   const updateMember = (index: number, field: keyof MemberFormData, value: string) => {
@@ -155,6 +161,16 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         m.name?.trim() && m.ensName?.trim() && membersValidation[index]?.isValid
       );
 
+      // Helper function to generate a proper 40-character hex address
+      const generateMockAddress = (): string => {
+        const hex = '0123456789abcdef';
+        let result = '0x';
+        for (let i = 0; i < 40; i++) {
+          result += hex[Math.floor(Math.random() * 16)];
+        }
+        return result;
+      };
+
       // Add the current user as the first member
       const allMembers = [
         {
@@ -163,12 +179,20 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
           ensName: currentUserEns || "",
           walletAddress: walletAddress || "",
         },
-        ...validMembers.map((m) => ({
-          id: generateId(),
-          name: m.name.trim(),
-          ensName: m.ensName.trim(),
-          walletAddress: `0x${Math.random().toString(16).substring(2, 42)}`, // Mock address for other members
-        }))
+        ...validMembers.map((m, memberIndex) => {
+          // Find the validation data for this member
+          const originalIndex = members.findIndex(member => 
+            member.name === m.name && member.ensName === m.ensName
+          );
+          const validation = membersValidation[originalIndex];
+          
+          return {
+            id: generateId(),
+            name: m.name.trim(),
+            ensName: m.ensName.trim(),
+            walletAddress: validation?.resolvedAddress || generateMockAddress(), // Use resolved address or fallback
+          }
+        })
       ]
 
       const newGroup: Group = {
@@ -185,7 +209,7 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
       // Reset form
       setGroupName("")
       setMembers([{ name: "", ensName: "" }])
-      setMembersValidation([{ isValid: true, isLoading: false }])
+      setMembersValidation([{ isValid: true, isLoading: false, resolvedAddress: undefined }])
       onClose()
     } catch (error) {
       console.error('Error creating group:', error)
@@ -278,7 +302,7 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
                         <MemberValidation
                           member={member}
                           currentUserEns={currentUserEns}
-                          onValidationChange={(validation: { isValid: boolean; isLoading: boolean; error?: string }) =>
+                          onValidationChange={(validation: { isValid: boolean; isLoading: boolean; error?: string; resolvedAddress?: string }) =>
                             handleValidationChange(index, validation)}
                         />
                         <div className="flex items-center space-x-2">

@@ -226,7 +226,12 @@ export default function GroupPage() {
 
           {/* Simplify Tab */}
           <TabsContent value="simplify" className="space-y-6">
-            <DebtSimplifier groupId={groupId} members={group.members} balances={balances} />
+            <DebtSimplifier 
+              groupId={groupId} 
+              members={group.members} 
+              balances={balances} 
+              onSettlementComplete={fetchGroup}
+            />
           </TabsContent>
         </Tabs>
       </div>

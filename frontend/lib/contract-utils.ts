@@ -1,5 +1,5 @@
 import { Address } from 'viem'
-import { formatUnits, parseUnits } from 'viem'
+import { formatUnits, parseUnits, stringToHex, pad } from 'viem'
 import { CONTRACT_INFO } from './contracts'
 
 // ======== FORMATTING UTILITIES ========
@@ -16,8 +16,10 @@ export function formatPyusdAmount(amount: bigint): string {
  * Parse PYUSD amount from human readable to wei
  * PYUSD uses 6 decimals
  */
-export function parsePyusdAmount(amount: string): bigint {
-  return parseUnits(amount, CONTRACT_INFO.pyusd.decimals)
+export function parsePyusdAmount(amount: string | number): bigint {
+  // Convert to string if it's a number
+  const amountStr = typeof amount === 'string' ? amount : amount.toString()
+  return parseUnits(amountStr, CONTRACT_INFO.pyusd.decimals)
 }
 
 /**
@@ -79,11 +81,12 @@ export interface SettlementData {
 
 export function createSettlementData(
   groupId: string,
-  debts: Array<{ creditor: Address; amount: string }>,
-  dueDateTimestamp: number
+  debts: Array<{ creditor: Address; amount: string | number }>,
+  dueDateTimestamp: number // Unix timestamp in seconds (will be converted to integer)
 ): SettlementData {
-  // Convert group ID to bytes32
-  const groupIdBytes = `0x${groupId.padStart(64, '0')}` as `0x${string}`
+  // Convert group ID to bytes32 using viem utilities
+  // This properly converts a string to a 32-byte hex value
+  const groupIdBytes = pad(stringToHex(groupId), { size: 32 })
   
   // Extract creditors and amounts
   const creditors = debts.map(debt => debt.creditor)
@@ -95,8 +98,8 @@ export function createSettlementData(
   // Calculate total
   const totalAmount = calculateTotalAmount(amounts)
   
-  // Convert due date to bigint
-  const dueDate = BigInt(dueDateTimestamp)
+  // Convert due date to bigint (ensure it's an integer first)
+  const dueDate = BigInt(Math.floor(dueDateTimestamp))
   
   return {
     groupId: groupIdBytes,

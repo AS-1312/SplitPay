@@ -75,7 +75,7 @@ export function GroupSettlement() {
     try {
       if (!groupId || debts.length === 0 || !dueDate) return null;
       
-      const dueDateTimestamp = new Date(dueDate).getTime() / 1000;
+      const dueDateTimestamp = Math.floor(new Date(dueDate).getTime() / 1000);
       return createSettlementData(groupId, debts, dueDateTimestamp);
     } catch (error) {
       console.error('Error creating settlement data:', error);

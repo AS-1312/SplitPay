@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,18 @@ import { useAccount } from "wagmi"
 // PYUSD Balance Display Component
 function PyusdBalance() {
   const { address, isConnected } = useAccount()
-  const { data: balance, isLoading, error } = usePyusdBalance(address)
+  const { data: balance, isLoading, error, refetch } = usePyusdBalance(address)
+
+  // Refresh balance every 30 seconds when connected
+  React.useEffect(() => {
+    if (!isConnected || !address) return
+
+    const interval = setInterval(() => {
+      refetch()
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(interval)
+  }, [isConnected, address, refetch])
 
   if (!isConnected || !address) {
     return null
@@ -19,7 +31,7 @@ function PyusdBalance() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg">
+      <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
         <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
         <span className="text-sm text-green-700">Loading...</span>
       </div>
@@ -28,7 +40,11 @@ function PyusdBalance() {
 
   if (error) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-1.5 bg-red-50 rounded-lg">
+      <div 
+        className="flex items-center space-x-2 px-3 py-1.5 bg-red-50 rounded-lg border border-red-200 cursor-pointer hover:bg-red-100 transition-colors"
+        onClick={() => refetch()}
+        title="Click to retry"
+      >
         <span className="text-sm text-red-700">Balance Error</span>
       </div>
     )
@@ -38,12 +54,21 @@ function PyusdBalance() {
   const displayBalance = parseFloat(formattedBalance).toFixed(2)
 
   return (
-    <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
-      <div className="w-2 h-2 bg-green-500 rounded-full" />
+    <motion.div 
+      className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200 cursor-pointer hover:bg-green-100 transition-colors"
+      onClick={() => refetch()}
+      title="Click to refresh balance"
+      whileTap={{ scale: 0.95 }}
+    >
+      <motion.div 
+        className="w-2 h-2 bg-green-500 rounded-full"
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 2, repeat: Infinity }}
+      />
       <span className="text-sm font-medium text-green-700">
         {displayBalance} PYUSD
       </span>
-    </div>
+    </motion.div>
   )
 }
 
