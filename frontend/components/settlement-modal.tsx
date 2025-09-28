@@ -27,6 +27,8 @@ import {
   createSettlementData,
   dateToTimestamp,
 } from "@/lib/contract-utils"
+import { receiptManager } from "@/lib/receipt-manager"
+import type { TransactionProgress } from "@/lib/receipt-types"
 import { useAccount, useWaitForTransactionReceipt } from "wagmi"
 import type { Member, Debt } from "@/lib/types"
 import { X, Wallet, CheckCircle, AlertCircle, Loader2, Zap, Shield, ArrowRight, Sparkles, ExternalLink } from "lucide-react"
@@ -48,6 +50,7 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
   const [settlementTxHash, setSettlementTxHash] = useState<string>("")
   const [showConfetti, setShowConfetti] = useState(false)
   const [settlementError, setSettlementError] = useState<string>("")
+  const [isStoringReceipt, setIsStoringReceipt] = useState(false)
 
   // Wallet connection
   const { address, isConnected } = useAccount()
@@ -229,6 +232,55 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
     }
   }
 
+  // Function to store receipt on Hedera after successful settlement
+  const storeReceiptOnHedera = async () => {
+    if (!settlementTxHash || !settlementData || !address) return
+
+    try {
+      console.log('Starting Hedera receipt storage...')
+      setIsStoringReceipt(true)
+
+      // Calculate debt metrics
+      const originalDebtsCount = debts.length
+      const simplifiedDebtsCount = settlementData.creditors.length
+      const totalAmountUsd = Number(formatPyusdAmount(settlementData.totalAmount))
+
+      console.log('Storing receipt with data:', {
+        groupId,
+        ethTxHash: settlementTxHash,
+        totalAmountUsd,
+        originalDebtsCount,
+        simplifiedDebtsCount
+      })
+
+      // Store receipt using the receipt manager with progress monitoring
+      const result = await receiptManager.storeSettlementReceipt(
+        groupId,
+        settlementTxHash,
+        totalAmountUsd,
+        originalDebtsCount,
+        simplifiedDebtsCount,
+        (progress: TransactionProgress) => {
+          console.log('Receipt storage progress:', progress)
+        }
+      )
+
+      if (result.success) {
+        console.log('Receipt stored successfully on Hedera:', {
+          receiptId: result.receiptId
+        })
+      } else {
+        console.error('Failed to store receipt on Hedera:', result.error)
+        // Don't throw error - settlement succeeded, receipt storage is additional
+      }
+    } catch (error) {
+      console.error('Error storing receipt on Hedera:', error)
+      // Don't throw error - settlement succeeded, receipt storage is additional
+    } finally {
+      setIsStoringReceipt(false)
+    }
+  }
+
   const steps = [
     { id: "review", label: "Review", icon: CheckCircle },
     { id: "connect", label: "Connect", icon: Wallet },
@@ -284,6 +336,7 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
     setSettlementTxHash("")
     setShowConfetti(false)
     setSettlementError("")
+    setIsStoringReceipt(false)
     onClose()
   }
 
@@ -668,7 +721,15 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
                       </div>
                       <h3 className="text-xl font-semibold text-gray-900 mb-2">Processing Settlement</h3>
                       <p className="text-gray-600 mb-4">Your transaction is being processed on the blockchain</p>
-                      <Progress value={isSettlementConfirming ? 85 : 45} className="w-full" />
+                      {isStoringReceipt && (
+                        <div className="mb-4">
+                          <div className="flex items-center justify-center space-x-2 text-sm text-blue-600">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Storing receipt on Hedera testnet...</span>
+                          </div>
+                        </div>
+                      )}
+                      <Progress value={isSettlementConfirming ? (isStoringReceipt ? 95 : 85) : 45} className="w-full" />
                       <p className="text-sm text-gray-500 mt-2">This may take a few moments...</p>
                     </div>
 
@@ -678,12 +739,15 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
                         <TransactionStatus
                           hash={settlementTxHash}
                           type="settlement"
-                          onSuccess={() => {
+                          onSuccess={async () => {
                             setCurrentStep("success")
                             setShowConfetti(true)
                             
                             // Record the settlement in the database
-                            recordSettlement()
+                            await recordSettlement()
+                            
+                            // Store receipt on Hedera testnet
+                            await storeReceiptOnHedera()
                             
                             // Call the completion callback to refresh data
                             if (onSettlementComplete) {

@@ -8,6 +8,7 @@ import { ExpenseCard } from "@/components/expense-card"
 import { AddExpenseModal } from "@/components/add-expense-modal"
 import { BalanceCard } from "@/components/balance-card"
 import { DebtSimplifier } from "@/components/debt-simplifier"
+import { ReputationSummary } from "@/components/reputation-summary"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -214,6 +215,8 @@ export default function GroupPage() {
 
           {/* Balances Tab */}
           <TabsContent value="balances" className="space-y-6">
+            <ReputationSummary members={group.members} />
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {group.members.map((member, index) => {
                 const memberBalance = balances[member.id] || 0

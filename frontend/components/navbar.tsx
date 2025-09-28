@@ -5,12 +5,13 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { SimpleWalletButton } from "@/components/simple-wallet-button"
+import { ClientOnly } from "@/components/client-only"
 import { usePyusdBalance } from "@/lib/contract-hooks"
 import { formatPyusdAmount } from "@/lib/contract-utils"
 import { useAccount } from "wagmi"
 
 // PYUSD Balance Display Component
-function PyusdBalance() {
+function PyusdBalanceInner() {
   const { address, isConnected } = useAccount()
   const { data: balance, isLoading, error, refetch } = usePyusdBalance(address)
 
@@ -69,6 +70,19 @@ function PyusdBalance() {
         {displayBalance} PYUSD
       </span>
     </motion.div>
+  )
+}
+
+// Wrapper component to prevent hydration issues
+function PyusdBalance() {
+  return (
+    <ClientOnly
+      fallback={
+        <div className="h-10 w-32 bg-gray-200 animate-pulse rounded-lg" />
+      }
+    >
+      <PyusdBalanceInner />
+    </ClientOnly>
   )
 }
 
