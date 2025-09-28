@@ -78,7 +78,7 @@ export function SettlementModal({ isOpen, onClose, groupId, members, debts, onSe
   const settlementData = useMemo(() => {
     try {
       // Convert debts to settlement format
-      const debtsByUser: { [key: string]: { creditor: string; amount: number }[] } = {}
+      const debtsByUser: { [key: string]: { creditor: `0x${string}`; amount: number }[] } = {}
       
       debts.forEach(debt => {
         const fromMember = members.find(m => 
