@@ -15,9 +15,10 @@ async function connectDB() {
 // PUT - Update specific expense
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; expenseId: string } }
+  context: { params: Promise<{ id: string; expenseId: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const body = await request.json();
     const { description, amount, paidBy, splitBetween, category } = body;
@@ -59,14 +60,15 @@ export async function PUT(
 // DELETE - Delete specific expense
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; expenseId: string } }
+  context: { params: Promise<{ id: string; expenseId: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
 
     const result = await db.collection('groups').findOneAndUpdate(
       { id: params.id },
-      { $pull: { expenses: { id: params.expenseId } } },
+      { $pull: { expenses: { id: params.expenseId } } } as any,
       { returnDocument: 'after' }
     );
 

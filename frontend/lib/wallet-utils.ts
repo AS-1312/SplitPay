@@ -60,7 +60,7 @@ export function getWalletInfo() {
   return {
     hasEthereum,
     hasMetaMask,
-    providers: [...new Set(providers)], // Remove duplicates
+    providers: Array.from(new Set(providers)), // Remove duplicates
     userAgent: navigator.userAgent,
     ethereumObject: ethereum ? Object.keys(ethereum) : [],
   }

@@ -15,9 +15,10 @@ async function connectDB() {
 // GET - Fetch specific group by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const group = await db.collection('groups').findOne({ id: params.id });
 
@@ -41,9 +42,10 @@ export async function GET(
 // PUT - Update group
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const body = await request.json();
     const { name, members } = body;
@@ -74,9 +76,10 @@ export async function PUT(
 // DELETE - Delete group
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const result = await db.collection('groups').findOneAndDelete({ id: params.id });
 

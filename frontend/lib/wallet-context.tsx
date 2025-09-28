@@ -73,7 +73,7 @@ function WalletProviderInner({ children }: { children: React.ReactNode }) {
     error: error?.message,
     connect: handleConnect,
     disconnect: handleDisconnect,
-    connectors,
+    connectors: [...connectors],
   }
 
   return (

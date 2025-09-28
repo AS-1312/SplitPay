@@ -16,9 +16,10 @@ async function connectDB() {
 // GET - Fetch all expenses for a group
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const group = await db.collection('groups').findOne({ id: params.id });
 
@@ -42,9 +43,10 @@ export async function GET(
 // POST - Add new expense to group
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const db = await connectDB();
     const body = await request.json();
     const { id: expenseId, description, amount, paidBy, splitBetween, category, date = new Date() } = body;
@@ -68,7 +70,7 @@ export async function POST(
 
     const result = await db.collection('groups').findOneAndUpdate(
       { id: params.id },
-      { $push: { expenses: newExpense } },
+      { $push: { expenses: newExpense } } as any,
       { returnDocument: 'after' }
     );
 

@@ -380,10 +380,10 @@ export function DebtSimplifier({ groupId, members, balances, onSettlementComplet
       {/* Stats Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="text-center">
         <div className="flex items-center justify-center space-x-4 mb-4">
-          <Badge variant="outline" className="text-lg px-4 py-2">
+          {/* <Badge variant="outline" className="text-lg px-4 py-2">
             <TrendingDown className="w-4 h-4 mr-2" />
             {reductionPercentage}% Reduction
-          </Badge>
+          </Badge> */}
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Debt Simplification</h2>
         <p className="text-gray-600">

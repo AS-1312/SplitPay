@@ -23,7 +23,7 @@ function WalletButtonInner({ className, size = "default" }: WalletButtonProps) {
     balance,
     balanceSymbol,
     isOnCorrectNetwork,
-    switchToMainnet,
+    switchToSepolia,
     disconnectWallet,
     isSwitching
   } = useWalletConnection()
@@ -54,7 +54,7 @@ function WalletButtonInner({ className, size = "default" }: WalletButtonProps) {
                 </div>
                 <Button
                   size="sm"
-                  onClick={switchToMainnet}
+                  onClick={switchToSepolia}
                   disabled={isSwitching}
                   className="w-full text-xs"
                 >
